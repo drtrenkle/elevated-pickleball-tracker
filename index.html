@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elevated — Fall 2026 Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+<!--
+  ============================================================
+  HOSTING THIS TRACKER — no Claude account, no org, no domain
+  ============================================================
+  This page is fully self-contained except for one thing: it needs
+  a free Firebase Realtime Database to store everyone's clicks
+  (GitHub Pages only serves static files — it can't save data itself).
+
+  Steps:
+   1. Go to https://firebase.google.com -> Get started -> create a project.
+   2. In the project, go to Build -> Realtime Database -> Create Database.
+   3. Open the "Rules" tab and replace the rules with:
+        { "rules": { ".read": true, ".write": true } }
+      then click Publish. (This makes it open, no-login — matches how
+      this tracker already works.)
+   4. Go to Project settings (gear icon) -> scroll to "Your apps" ->
+      click the </> web icon -> register an app -> copy the
+      firebaseConfig object it shows you.
+   5. Paste your apiKey, databaseURL and projectId into the
+      FIREBASE_CONFIG object below, replacing the placeholder text.
+   6. Upload this file (renamed index.html, which it already is) to a
+      new public GitHub repo, then Settings -> Pages -> Deploy from
+      branch -> main -> / (root). Your live link will be
+      https://yourusername.github.io/your-repo-name/
+  ============================================================
+-->
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+<style>
+  :root{
+    --navy-950:#0A1B33;
+    --navy-800:#123059;
+    --navy-600:#2B5C99;
+    --blue-wash:#EEF3FB;
+    --white:#FFFFFF;
+    --ink:#10203A;
+    --slate:#5E6E86;
+    --line:#DFE6F1;
+    --in:#2E9E5B;
+    --in-bg:#E4F5EA;
+    --maybe:#C98A1E;
+    --maybe-bg:#FBEFD9;
+    --out:#D14B44;
+    --out-bg:#FBE6E4;
+    --none-bg:#E7EBF3;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:8px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--blue-wash);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+    font-size:15px;
+    line-height:1.45;
+  }
+  h1,h2,h3,.num{ font-family:"Space Grotesk",-apple-system,sans-serif; }
+  .wrap{ max-width:980px; margin:0 auto; padding:28px 20px 60px; }
+
+  .setup-banner{
+    background:#FBEFD9; border:1px solid #E9C983; color:#6B4E12;
+    border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:18px;
+    font-size:13.5px; display:none;
+  }
+  .setup-banner.show{ display:block; }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    background:linear-gradient(135deg,var(--navy-950),var(--navy-800));
+    border-radius:0 0 var(--radius-lg) var(--radius-lg);
+    color:var(--white);
+    padding:28px 28px 24px;
+    margin:-28px -20px 24px;
+    animation:fadeDown .5s ease;
+  }
+  @keyframes fadeDown{ from{opacity:0; transform:translateY(-8px);} to{opacity:1; transform:translateY(0);} }
+  .hero-top{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:space-between; }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand h1{ font-size:26px; font-weight:700; margin:0; letter-spacing:.2px; }
+  .brand-sub{ font-size:13px; color:#B7C6E4; margin-top:2px; }
+  .badge{
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.22);
+    padding:5px 12px;
+    border-radius:999px;
+    font-size:12.5px;
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .stat-row{ display:flex; gap:28px; margin-top:22px; flex-wrap:wrap; }
+  .stat{ min-width:110px; }
+  .stat .num{ font-size:26px; font-weight:700; line-height:1; }
+  .stat .label{ font-size:12px; color:#AEC0E2; margin-top:4px; }
+  .progress-wrap{ flex:1; min-width:200px; }
+  .progress-track{ height:8px; border-radius:99px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:9px;}
+  .progress-fill{ height:100%; background:#6FA8F0; border-radius:99px; transition:width .4s ease; }
+
+  /* ---------- SECTIONS ---------- */
+  section{ background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); padding:22px 22px 24px; margin-bottom:20px; }
+  section h2{ font-size:17px; margin:0 0 3px; }
+  .section-sub{ font-size:13px; color:var(--slate); margin-bottom:16px; }
+
+  /* ---------- LEGEND ---------- */
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--slate); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+  .dot.in{ background:var(--in); } .dot.maybe{ background:var(--maybe); } .dot.out{ background:var(--out); } .dot.none{ background:#B9C3D6; }
+
+  /* ---------- MATRIX ---------- */
+  .matrix-scroll{ overflow-x:auto; border-radius:var(--radius-sm); }
+  table.matrix{ border-collapse:collapse; width:100%; min-width:760px; }
+  table.matrix th, table.matrix td{ padding:8px 7px; text-align:center; border-bottom:1px solid var(--line); }
+  table.matrix thead th{ vertical-align:bottom; padding-bottom:10px; }
+  th.player-col, td.player-col{
+    text-align:left; position:sticky; left:0; background:var(--white);
+    min-width:168px; padding-left:4px; border-right:1px solid var(--line);
+  }
+  .player-name{ font-weight:600; font-size:13.5px; }
+  .player-role{ font-size:11.5px; color:var(--slate); }
+  .date-head{ font-size:12.5px; font-weight:600; white-space:nowrap; }
+  .date-note{ display:block; font-size:10.5px; color:var(--slate); font-weight:500; margin-top:2px; }
+  .opp-input{
+    width:96px; font-size:11px; text-align:center; border:1px solid var(--line);
+    border-radius:6px; padding:2px 4px; color:var(--slate); margin-top:5px; background:var(--blue-wash);
+  }
+  .opp-input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  .count-chip{
+    display:inline-block; margin-top:6px; padding:2px 9px; border-radius:999px;
+    font-size:11px; font-weight:700;
+  }
+  .count-chip.good{ background:var(--in-bg); color:var(--in); }
+  .count-chip.mid{ background:var(--maybe-bg); color:var(--maybe); }
+  .count-chip.low{ background:var(--out-bg); color:var(--out); }
+
+  .cell-btn{
+    width:34px; height:30px; border-radius:8px; border:none; cursor:pointer;
+    background:var(--none-bg); font-size:12px; font-weight:700; color:var(--slate);
+    transition:transform .1s ease;
+  }
+  .cell-btn:hover{ transform:scale(1.07); }
+  .cell-btn:focus-visible{ outline:2px solid var(--navy-600); outline-offset:2px; }
+  .cell-btn.in{ background:var(--in-bg); color:var(--in); }
+  .cell-btn.maybe{ background:var(--maybe-bg); color:var(--maybe); }
+  .cell-btn.out{ background:var(--out-bg); color:var(--out); }
+
+  .hint{ font-size:12px; color:var(--slate); margin-top:12px; }
+
+  /* ---------- ROSTER ---------- */
+  .roster-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px; }
+  .player-card{
+    border:1px solid var(--line); border-radius:var(--radius-sm); padding:13px 14px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:8px;
+  }
+  .player-card .role-tag{
+    display:inline-block; font-size:10.5px; font-weight:700; color:var(--navy-600);
+    background:#E4ECFA; padding:1px 8px; border-radius:999px; margin-bottom:5px;
+  }
+  .player-card .pname{ font-weight:600; font-size:14px; }
+  .player-card .pemail{ font-size:12px; color:var(--slate); margin-top:2px; word-break:break-all; }
+  .remove-btn{
+    background:none; border:none; color:var(--slate); cursor:pointer; font-size:15px;
+    line-height:1; padding:2px 4px; border-radius:6px;
+  }
+  .remove-btn:hover{ background:var(--out-bg); color:var(--out); }
+
+  .roster-cap{ font-size:12.5px; color:var(--slate); margin-left:6px; font-weight:500; }
+  .add-row{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .add-row input{
+    flex:1; min-width:150px; padding:9px 11px; border:1px solid var(--line);
+    border-radius:var(--radius-sm); font-size:13.5px; font-family:inherit;
+  }
+  .add-row input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  .btn-primary{
+    background:var(--navy-600); color:#fff; border:none; padding:9px 18px;
+    border-radius:var(--radius-sm); font-size:13.5px; font-weight:600; cursor:pointer;
+  }
+  .btn-primary:hover{ background:var(--navy-800); }
+
+  /* ---------- INFO STRIP ---------- */
+  .info-strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; }
+  .info-block h3{ font-size:12.5px; text-transform:none; color:var(--slate); margin:0 0 6px; font-weight:600; }
+  .info-block p{ margin:0; font-size:13.5px; }
+  .info-block a{ color:var(--navy-600); }
+  .reset-link{ font-size:12px; color:var(--slate); background:none; border:none; cursor:pointer; text-decoration:underline; padding:0; }
+
+  @media (max-width:600px){
+    .hero{ padding:22px 18px 20px; }
+    .stat-row{ gap:18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="setup-banner" id="setup-banner">
+    This tracker isn't connected to a database yet. Open this file and follow the setup
+    comment at the top of the &lt;head&gt; to add your free Firebase config — until then,
+    clicks won't be saved or shared.
+  </div>
+
+  <header class="hero">
+    <div class="hero-top">
+      <div class="brand">
+        <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="15" cy="14" rx="10" ry="11" transform="rotate(-18 15 14)" stroke="#8FB4E8" stroke-width="2.2"/>
+          <line x1="15" y1="24" x2="10" y2="34" stroke="#8FB4E8" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="31" cy="9" r="3.4" stroke="#6FA8F0" stroke-width="2"/>
+        </svg>
+        <div>
+          <h1>Elevated</h1>
+          <div class="brand-sub">Captain Dr. Geoffrey Trenkle · El Segundo Rec &amp; Parks</div>
+        </div>
+      </div>
+      <span class="badge" id="division-badge">MD 4.0+</span>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="stat-games">8</div><div class="label">Tuesday games</div></div>
+      <div class="stat"><div class="num" id="stat-roster">5</div><div class="label">Roster</div></div>
+      <div class="stat"><div class="num" id="stat-next">—</div><div class="label">Next game</div></div>
+      <div class="progress-wrap">
+        <div class="label" id="progress-label">Season progress</div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+  </header>
+
+  <section id="tracker-section">
+    <h2>Season tracker</h2>
+    <div class="section-sub">Tuesdays, Sep 15 – Nov 3, 6–8pm PT · click a cell to cycle a player's status</div>
+    <div class="legend">
+      <span><span class="dot in"></span>In</span>
+      <span><span class="dot maybe"></span>Maybe</span>
+      <span><span class="dot out"></span>Out</span>
+      <span><span class="dot none"></span>Unconfirmed</span>
+    </div>
+    <div class="matrix-scroll">
+      <table class="matrix" id="matrix-table"></table>
+    </div>
+    <div class="hint">Opponent fields are editable — fill them in once Connie publishes the court/matchup schedule. Changes here update live for everyone viewing this page.</div>
+  </section>
+
+  <section id="roster-section">
+    <h2>Roster <span class="roster-cap" id="roster-cap">(5/5)</span></h2>
+    <div class="section-sub">League cap is 5 players per team</div>
+    <div class="roster-grid" id="roster-grid"></div>
+    <div class="add-row">
+      <input type="text" id="new-name" placeholder="Player name">
+      <input type="text" id="new-email" placeholder="Email">
+      <button class="btn-primary" id="add-player-btn">Add player</button>
+    </div>
+  </section>
+
+  <section class="info-strip">
+    <div class="info-block">
+      <h3>Team fee</h3>
+      <p>$232 (non-resident). El Segundo staff invoice through the captain's rec account; payment due within 3 days of that email.</p>
+    </div>
+    <div class="info-block">
+      <h3>League contact</h3>
+      <p>Connie Thrasher, Recreation Pickleball Specialist<br>310-524-2700 · Elsegundorecparks.org</p>
+    </div>
+    <div class="info-block">
+      <h3>Data</h3>
+      <p>Live for everyone — this page updates in real time as anyone toggles a status, no login required. <button class="reset-link" id="reset-btn">Reset all attendance</button></p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ===== STEP 5: paste your Firebase config here (see setup comment in <head>) ===== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAjC8PSDnO-ZKd4dc7PxTqY-Top17S0Z9A",
+  databaseURL: "https://elevated-pickleball-default-rtdb.firebaseio.com",
+  projectId: "elevated-pickleball"
+};
+/* =================================================================================== */
+
+const DEFAULT_PLAYERS = [
+  {id:'geoff',  name:'Dr. Geoffrey Trenkle', role:'Captain', email:'drtrenkle@laent.com'},
+  {id:'jeff',   name:'Jeff Safenowitz',      role:'Player',  email:'Jeffsafenowitz@gmail.com'},
+  {id:'marty',  name:'Marty Dehler',         role:'Player',  email:'Martydehler@gmail.com'},
+  {id:'daley',  name:'Daley Meistrell',      role:'Player',  email:'daleymeistrell@gmail.com'},
+  {id:'julien', name:'Julien Sautot',        role:'Player',  email:'julien@elevatedpickleball.com'}
+];
+
+const GAMES = [
+  {id:'w1', date:'2026-09-15', note:null},
+  {id:'w2', date:'2026-09-22', note:null},
+  {id:'w3', date:'2026-09-29', note:null},
+  {id:'w4', date:'2026-10-06', note:null},
+  {id:'w5', date:'2026-10-13', note:null},
+  {id:'w6', date:'2026-10-20', note:null},
+  {id:'w7', date:'2026-10-27', note:null},
+  {id:'w8', date:'2026-11-03', note:'Final match'}
+];
+
+const STATUS_CYCLE = [null, 'in', 'maybe', 'out'];
+const STATUS_LABEL = {in:'IN', maybe:'MB', out:'OUT'};
+
+let state = { players: DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{} };
+let dbRef = null;
+
+function parseLocalDate(str){
+  const [y,m,d] = str.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+function shortDate(str){
+  return parseLocalDate(str).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+
+function initFirebase(){
+  const configured = FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.startsWith('PASTE_');
+  if(!configured){
+    document.getElementById('setup-banner').classList.add('show');
+    render(); // render with local defaults so the page still shows something
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  dbRef = firebase.database().ref('elevatedTracker');
+
+  dbRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if(data){
+      state = Object.assign({players:DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{}}, data);
+    } else {
+      // first ever load — seed the database with the defaults
+      dbRef.set(state);
+    }
+    render();
+  }, (err) => {
+    console.error('Firebase read failed', err);
+    document.getElementById('setup-banner').classList.add('show');
+    render();
+  });
+}
+
+function saveState(){
+  if(!dbRef) return; // not configured yet — nothing to sync to
+  dbRef.set(state).catch(e => console.error('Save failed', e));
+}
+
+function render(){
+  renderHero();
+  renderMatrix();
+  renderRoster();
+}
+
+function renderHero(){
+  document.getElementById('stat-games').textContent = GAMES.length;
+  document.getElementById('stat-roster').textContent = state.players.length;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const upcoming = GAMES.find(g => parseLocalDate(g.date) >= today);
+  document.getElementById('stat-next').textContent = upcoming ? shortDate(upcoming.date).replace(',', '') : 'Season complete';
+
+  const played = GAMES.filter(g => parseLocalDate(g.date) < today).length;
+  const pct = Math.round((played / GAMES.length) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `Season progress — ${played}/${GAMES.length} played`;
+}
+
+function renderMatrix(){
+  const table = document.getElementById('matrix-table');
+  let html = '<thead><tr><th class="player-col">Player</th>';
+  GAMES.forEach(g=>{
+    const inCount = state.players.filter(p => (state.attendance[g.id]||{})[p.id] === 'in').length;
+    const frac = state.players.length ? inCount/state.players.length : 0;
+    const chipClass = frac >= 0.8 ? 'good' : frac >= 0.4 ? 'mid' : 'low';
+    html += `<th>
+      <div class="date-head">${shortDate(g.date)}</div>
+      ${g.note ? `<span class="date-note">${g.note}</span>` : ''}
+      <input class="opp-input" data-game="${g.id}" placeholder="Opponent TBD" value="${state.opponents[g.id] || ''}">
+      <div class="count-chip ${chipClass}">${inCount}/${state.players.length} in</div>
+    </th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  state.players.forEach(p=>{
+    html += `<tr><td class="player-col"><div class="player-name">${p.name}</div><div class="player-role">${p.role}</div></td>`;
+    GAMES.forEach(g=>{
+      const status = (state.attendance[g.id]||{})[p.id] || null;
+      const cls = status ? status : '';
+      html += `<td><button class="cell-btn ${cls}" data-game="${g.id}" data-player="${p.id}">${status ? STATUS_LABEL[status] : ''}</button></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('.cell-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const gid = btn.dataset.game, pid = btn.dataset.player;
+      state.attendance[gid] = state.attendance[gid] || {};
+      const current = state.attendance[gid][pid] || null;
+      const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(current)+1) % STATUS_CYCLE.length];
+      if(next) state.attendance[gid][pid] = next; else delete state.attendance[gid][pid];
+      saveState();
+      renderMatrix();
+      renderHero();
+    });
+  });
+
+  table.querySelectorAll('.opp-input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      state.opponents[inp.dataset.game] = inp.value;
+      saveState();
+    });
+  });
+}
+
+function renderRoster(){
+  const grid = document.getElementById('roster-grid');
+  grid.innerHTML = state.players.map(p=>`
+    <div class="player-card">
+      <div>
+        <span class="role-tag">${p.role}</span>
+        <div class="pname">${p.name}</div>
+        <div class="pemail">${p.email}</div>
+      </div>
+      <button class="remove-btn" data-id="${p.id}" title="Remove player">✕</button>
+    </div>
+  `).join('');
+
+  document.getElementById('roster-cap').textContent = `(${state.players.length}/5)`;
+
+  grid.querySelectorAll('.remove-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const player = state.players.find(p=>p.id===id);
+      if(!confirm(`Remove ${player.name} from the roster?`)) return;
+      state.players = state.players.filter(p=>p.id!==id);
+      Object.values(state.attendance).forEach(week=>{ delete week[id]; });
+      saveState();
+      render();
+    });
+  });
+}
+
+document.getElementById('add-player-btn').addEventListener('click', ()=>{
+  const nameEl = document.getElementById('new-name');
+  const emailEl = document.getElementById('new-email');
+  const name = nameEl.value.trim(), email = emailEl.value.trim();
+  if(!name) return;
+  const id = 'p' + Date.now();
+  state.players.push({id, name, role:'Player', email: email || '—'});
+  nameEl.value=''; emailEl.value='';
+  saveState();
+  render();
+});
+
+document.getElementById('reset-btn').addEventListener('click', ()=>{
+  if(!confirm('Clear all attendance marks and opponent notes? Roster stays as-is.')) return;
+  state.attendance = {};
+  state.opponents = {};
+  saveState();
+  render();
+});
+
+initFirebase();
+</script>
+</body>
+</html>
