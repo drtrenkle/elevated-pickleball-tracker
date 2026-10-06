@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elevated — Add Results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0A1B33; --navy-600:#2B5C99; --blue-wash:#EEF3FB;
+    --white:#FFFFFF; --ink:#10203A; --slate:#5E6E86; --line:#DFE6F1;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--blue-wash); color:var(--ink); font-family:'Space Grotesk', sans-serif; }
+  .wrap{ max-width:560px; margin:0 auto; padding:28px 18px 60px; }
+  h1{ font-size:22px; margin:0 0 6px; }
+  .sub{ color:var(--slate); font-size:13.5px; margin:0 0 22px; line-height:1.5; }
+  .week-card{
+    background:var(--white); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .week-date{ width:100%; font-weight:700; font-size:13.5px; }
+  .week-note{ color:var(--slate); font-weight:500; font-size:11.5px; }
+  input{
+    flex:1 1 130px; font-family:inherit; font-size:13px; padding:7px 9px;
+    border:1px solid var(--line); border-radius:7px; color:var(--ink);
+  }
+  input.score{ flex:0 1 90px; text-align:center; font-weight:700; }
+  input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  .save-btn{
+    background:var(--navy-600); color:#fff; border:none; border-radius:7px;
+    padding:8px 14px; font-family:inherit; font-weight:700; font-size:12.5px; cursor:pointer;
+  }
+  .save-btn:hover{ background:var(--navy-950); }
+  .status{ font-size:11.5px; color:var(--slate); width:100%; min-height:14px; }
+  .status.ok{ color:#1B7A4D; font-weight:700; }
+  .status.err{ color:#B4232C; font-weight:700; }
+  .loading{ color:var(--slate); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Elevated — Add results</h1>
+  <p class="sub">Enter each week's opponent and final score, then hit Save on that row. This only updates the opponent/score for that week — attendance and roster are never touched, and changes show up instantly on the main tracker for everyone.</p>
+  <div id="rows"><p class="loading">Loading current data…</p></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+/* Same Firebase project the main tracker uses — keep this in sync if that ever changes. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAjC8PSDnO-ZKd4dc7PxTqY-Top17S0Z9A",
+  databaseURL: "https://elevated-pickleball-default-rtdb.firebaseio.com",
+  projectId: "elevated-pickleball"
+};
+firebase.initializeApp(FIREBASE_CONFIG);
+const dbRef = firebase.database().ref('elevatedTracker');
+
+const GAMES = [
+  {id:'w1', date:'2026-09-15', note:null},
+  {id:'w2', date:'2026-09-22', note:null},
+  {id:'w3', date:'2026-09-29', note:null},
+  {id:'w4', date:'2026-10-06', note:null},
+  {id:'w5', date:'2026-10-13', note:null},
+  {id:'w6', date:'2026-10-20', note:null},
+  {id:'w7', date:'2026-10-27', note:null},
+  {id:'w8', date:'2026-11-03', note:'Final match'}
+];
+
+function parseLocalDate(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
+function shortDate(str){ return parseLocalDate(str).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+
+function render(opponents, scores){
+  document.getElementById('rows').innerHTML = GAMES.map(g => `
+    <div class="week-card">
+      <div class="week-date">${shortDate(g.date)} ${g.note ? `<span class="week-note">· ${g.note}</span>` : ''}</div>
+      <input class="opp" data-game="${g.id}" placeholder="Opponent" value="${opponents[g.id] || ''}">
+      <input class="score" data-game="${g.id}" placeholder="Score" value="${scores[g.id] || ''}">
+      <button class="save-btn" data-game="${g.id}">Save</button>
+      <div class="status" id="status-${g.id}"></div>
+    </div>
+  `).join('');
+
+  document.querySelectorAll('.save-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const gid = btn.dataset.game;
+      const oppVal = document.querySelector(`.opp[data-game="${gid}"]`).value;
+      const scoreVal = document.querySelector(`.score[data-game="${gid}"]`).value;
+      const statusEl = document.getElementById('status-' + gid);
+      statusEl.textContent = 'Saving…'; statusEl.className = 'status';
+
+      Promise.all([
+        dbRef.child('opponents').update({ [gid]: oppVal }),
+        dbRef.child('scores').update({ [gid]: scoreVal }),
+      ]).then(() => {
+        statusEl.textContent = 'Saved — live on the tracker now.';
+        statusEl.className = 'status ok';
+        setTimeout(() => { statusEl.textContent = ''; }, 3000);
+      }).catch(err => {
+        statusEl.textContent = 'Save failed — check connection and try again.';
+        statusEl.className = 'status err';
+        console.error(err);
+      });
+    });
+  });
+}
+
+dbRef.once('value').then(snap => {
+  const data = snap.val() || {};
+  render(data.opponents || {}, data.scores || {});
+}).catch(err => {
+  document.getElementById('rows').innerHTML = '<p class="loading">Could not load — check your connection and reload.</p>';
+  console.error(err);
+});
+</script>
+</body>
+</html>

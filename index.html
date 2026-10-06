@@ -138,6 +138,18 @@
     border-radius:6px; padding:2px 4px; color:var(--slate); margin-top:5px; background:var(--blue-wash);
   }
   .opp-input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  .score-input{
+    width:96px; font-size:11px; text-align:center; border:1px solid var(--line);
+    border-radius:6px; padding:2px 4px; color:var(--ink); margin-top:4px; background:var(--white); font-weight:700;
+  }
+  .score-input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  .standings-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .standings-table th, .standings-table td{ padding:7px 9px; text-align:left; border-bottom:1px solid var(--line); }
+  .standings-table th{ font-size:11px; color:var(--slate); font-weight:600; }
+  .standings-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  .standings-table tr.us{ background:var(--blue-wash); font-weight:700; }
+  .standings-table tr.us td{ color:var(--navy-950); }
+  .standings-note{ font-size:11.5px; color:var(--slate); margin-top:8px; }
   .count-chip{
     display:inline-block; margin-top:6px; padding:2px 9px; border-radius:999px;
     font-size:11px; font-weight:700;
@@ -251,7 +263,16 @@
     <div class="matrix-scroll">
       <table class="matrix" id="matrix-table"></table>
     </div>
-    <div class="hint">Opponent fields are editable — fill them in once Connie publishes the court/matchup schedule. Changes here update live for everyone viewing this page.</div>
+    <div class="hint">Opponent and score fields are editable — fill them in as Connie publishes each week's court/matchup and result. Changes here update live for everyone viewing this page.</div>
+  </section>
+
+  <section id="standings-section">
+    <h2>League standings</h2>
+    <div class="section-sub" id="standings-asof">Men's 4.0 · El Segundo · snapshot</div>
+    <div class="matrix-scroll">
+      <table class="standings-table" id="standings-table"></table>
+    </div>
+    <div class="standings-note">Pulled from the league's standings page — update the STANDINGS list in the code whenever a new snapshot comes out. This is the season-wide table, not a week-by-week log, so it won't fill in the opponent/score boxes above on its own.</div>
   </section>
 
   <section id="roster-section">
@@ -313,7 +334,22 @@ const GAMES = [
 const STATUS_CYCLE = [null, 'in', 'maybe', 'out'];
 const STATUS_LABEL = {in:'IN', maybe:'MB', out:'OUT'};
 
-let state = { players: DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{} };
+// League-wide standings snapshot (Men's 4.0, El Segundo) — from pickleball.com,
+// pulled 2026-09-29. This is season-cumulative, not a week-by-week schedule, so
+// update this whole list whenever a new standings export comes out.
+const STANDINGS_ASOF = 'As of Sep 29, 2026';
+const STANDINGS = [
+  {rank:1, team:'Smart and Tall',        pts:9, played:4, w:4, l:0, t:0, pf:116, pa:85},
+  {rank:2, team:'Dinking Bad',           pts:8, played:4, w:3, l:1, t:0, pf:117, pa:88},
+  {rank:3, team:'Mild Stallions',        pts:8, played:4, w:3, l:1, t:0, pf:110, pa:57},
+  {rank:4, team:'Hold The Pickles MD4',  pts:7, played:4, w:2, l:2, t:0, pf:108, pa:92},
+  {rank:5, team:'Elevated',              pts:7, played:4, w:3, l:1, t:0, pf:113, pa:92, us:true},
+  {rank:6, team:'Fireballs',             pts:5, played:4, w:1, l:3, t:0, pf:90,  pa:91},
+  {rank:7, team:'Pickle Spears',         pts:2, played:4, w:0, l:4, t:0, pf:57,  pa:123},
+  {rank:8, team:'Absolutely Pickled',    pts:2, played:4, w:0, l:4, t:0, pf:47,  pa:130},
+];
+
+let state = { players: DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{}, scores:{} };
 let dbRef = null;
 
 function parseLocalDate(str){
@@ -337,7 +373,7 @@ function initFirebase(){
   dbRef.on('value', (snapshot) => {
     const data = snapshot.val();
     if(data){
-      state = Object.assign({players:DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{}}, data);
+      state = Object.assign({players:DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{}, scores:{}}, data);
     } else {
       // first ever load — seed the database with the defaults
       dbRef.set(state);
@@ -358,7 +394,23 @@ function saveState(){
 function render(){
   renderHero();
   renderMatrix();
+  renderStandings();
   renderRoster();
+}
+
+function renderStandings(){
+  document.getElementById('standings-asof').textContent = `Men's 4.0 · El Segundo · ${STANDINGS_ASOF}`;
+  const table = document.getElementById('standings-table');
+  let html = '<thead><tr><th>#</th><th>Team</th><th class="num">Pts</th><th class="num">Record</th><th class="num">PF</th><th class="num">PA</th><th class="num">+/-</th></tr></thead><tbody>';
+  STANDINGS.forEach(t=>{
+    html += `<tr class="${t.us ? 'us' : ''}">
+      <td>${t.rank}</td><td>${t.team}${t.us ? ' (us)' : ''}</td>
+      <td class="num">${t.pts}</td><td class="num">${t.w}-${t.l}${t.t ? '-'+t.t : ''}</td>
+      <td class="num">${t.pf}</td><td class="num">${t.pa}</td><td class="num">${t.pf - t.pa > 0 ? '+' : ''}${t.pf - t.pa}</td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
 }
 
 function renderHero(){
@@ -386,6 +438,7 @@ function renderMatrix(){
       <div class="date-head">${shortDate(g.date)}</div>
       ${g.note ? `<span class="date-note">${g.note}</span>` : ''}
       <input class="opp-input" data-game="${g.id}" placeholder="Opponent TBD" value="${state.opponents[g.id] || ''}">
+      <input class="score-input" data-game="${g.id}" placeholder="Score" value="${state.scores[g.id] || ''}">
       <div class="count-chip ${chipClass}">${inCount}/${state.players.length} in</div>
     </th>`;
   });
@@ -419,6 +472,13 @@ function renderMatrix(){
   table.querySelectorAll('.opp-input').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       state.opponents[inp.dataset.game] = inp.value;
+      saveState();
+    });
+  });
+
+  table.querySelectorAll('.score-input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      state.scores[inp.dataset.game] = inp.value;
       saveState();
     });
   });
@@ -465,9 +525,10 @@ document.getElementById('add-player-btn').addEventListener('click', ()=>{
 });
 
 document.getElementById('reset-btn').addEventListener('click', ()=>{
-  if(!confirm('Clear all attendance marks and opponent notes? Roster stays as-is.')) return;
+  if(!confirm('Clear all attendance marks, opponents, and scores? Roster stays as-is.')) return;
   state.attendance = {};
   state.opponents = {};
+  state.scores = {};
   saveState();
   render();
 });
