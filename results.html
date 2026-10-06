@@ -9,32 +9,46 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --navy-950:#0A1B33; --navy-600:#2B5C99; --blue-wash:#EEF3FB;
+    --navy-950:#0A1B33; --navy-800:#123059; --navy-600:#2B5C99; --blue-wash:#EEF3FB;
     --white:#FFFFFF; --ink:#10203A; --slate:#5E6E86; --line:#DFE6F1;
+    --in:#2E9E5B; --in-bg:#E4F5EA; --out:#D14B44; --out-bg:#FBE6E4; --none-bg:#E7EBF3;
   }
   *{box-sizing:border-box;}
   body{ margin:0; background:var(--blue-wash); color:var(--ink); font-family:'Space Grotesk', sans-serif; }
-  .wrap{ max-width:560px; margin:0 auto; padding:28px 18px 60px; }
+  .wrap{ max-width:600px; margin:0 auto; padding:28px 18px 60px; }
   h1{ font-size:22px; margin:0 0 6px; }
-  .sub{ color:var(--slate); font-size:13.5px; margin:0 0 22px; line-height:1.5; }
+  .sub{ color:var(--slate); font-size:13.5px; margin:0 0 12px; line-height:1.5; }
+  .how{
+    background:var(--white); border:1px solid var(--line); border-left:4px solid var(--navy-600);
+    border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.5; margin:0 0 20px;
+  }
+  .how b{ color:var(--navy-800); }
   .week-card{
     background:var(--white); border:1px solid var(--line); border-radius:10px;
-    padding:12px 14px; margin-bottom:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:12px 14px; margin-bottom:10px;
   }
-  .week-date{ width:100%; font-weight:700; font-size:13.5px; }
+  .week-date{ font-weight:700; font-size:13.5px; margin-bottom:8px; }
   .week-note{ color:var(--slate); font-weight:500; font-size:11.5px; }
-  input{
-    flex:1 1 130px; font-family:inherit; font-size:13px; padding:7px 9px;
-    border:1px solid var(--line); border-radius:7px; color:var(--ink);
+  .fields{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  select, input{
+    font-family:inherit; font-size:13.5px; padding:8px 9px; color:var(--ink);
+    border:1px solid var(--line); border-radius:7px; background:var(--white);
   }
-  input.score{ flex:0 1 90px; text-align:center; font-weight:700; }
-  input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  select.opp{ flex:1 1 190px; min-width:0; }
+  .score-group{ display:flex; align-items:center; gap:6px; }
+  input.num{ width:54px; text-align:center; font-weight:700; padding:8px 4px; }
+  .dash{ color:var(--slate); font-weight:700; }
+  .lbl{ font-size:10.5px; color:var(--slate); text-align:center; margin-top:2px; }
+  select:focus, input:focus{ outline:2px solid var(--navy-600); outline-offset:1px; }
+  .chip{ min-width:46px; text-align:center; padding:4px 8px; border-radius:99px; font-size:11.5px; font-weight:700; background:var(--none-bg); color:var(--slate); }
+  .chip.win{ background:var(--in-bg); color:var(--in); }
+  .chip.loss{ background:var(--out-bg); color:var(--out); }
   .save-btn{
-    background:var(--navy-600); color:#fff; border:none; border-radius:7px;
-    padding:8px 14px; font-family:inherit; font-weight:700; font-size:12.5px; cursor:pointer;
+    margin-left:auto; background:var(--navy-600); color:#fff; border:none; border-radius:7px;
+    padding:9px 16px; font-family:inherit; font-weight:700; font-size:13px; cursor:pointer;
   }
   .save-btn:hover{ background:var(--navy-950); }
-  .status{ font-size:11.5px; color:var(--slate); width:100%; min-height:14px; }
+  .status{ font-size:11.5px; color:var(--slate); min-height:15px; margin-top:6px; }
   .status.ok{ color:#1B7A4D; font-weight:700; }
   .status.err{ color:#B4232C; font-weight:700; }
   .loading{ color:var(--slate); font-size:13px; }
@@ -43,14 +57,15 @@
 <body>
 <div class="wrap">
   <h1>Elevated — Add results</h1>
-  <p class="sub">Enter each week's opponent and final score, then hit Save on that row. This only updates the opponent/score for that week — attendance and roster are never touched, and changes show up instantly on the main tracker for everyone.</p>
+  <p class="sub">Pick the opponent, enter the score, then hit Save on that row. Only that week's opponent and score are updated; attendance and roster are never touched, and the main tracker updates instantly.</p>
+  <div class="how"><b>How to enter the score:</b> numbers only. First box is how many matches <b>Elevated</b> won, second box is how many the <b>opponent</b> won. Example: we won 2 and they won 1, enter <b>2</b> and <b>1</b>. The Win/Loss tag fills in on its own.</div>
   <div id="rows"><p class="loading">Loading current data…</p></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
-/* Same Firebase project the main tracker uses — keep this in sync if that ever changes. */
+/* Same Firebase project the main tracker uses. */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAjC8PSDnO-ZKd4dc7PxTqY-Top17S0Z9A",
   databaseURL: "https://elevated-pickleball-default-rtdb.firebaseio.com",
@@ -58,6 +73,17 @@ const FIREBASE_CONFIG = {
 };
 firebase.initializeApp(FIREBASE_CONFIG);
 const dbRef = firebase.database().ref('elevatedTracker');
+
+/* The other 7 teams in Men's 4.0+ (Fall 2026). Edit this list if the league changes. */
+const OPPONENTS = [
+  'Smart and Tall',
+  'Hold The Pickles MD4',
+  'Dinking Bad',
+  'Mild Stallions',
+  'Fireballs',
+  'Absolutely Pickled',
+  'Pickle Spears'
+];
 
 const GAMES = [
   {id:'w1', date:'2026-09-15', note:null},
@@ -72,35 +98,75 @@ const GAMES = [
 
 function parseLocalDate(str){ const [y,m,d] = str.split('-').map(Number); return new Date(y, m-1, d); }
 function shortDate(str){ return parseLocalDate(str).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+function esc(v){ return String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function updateChip(gid){
+  const us = document.querySelector(`.us[data-game="${gid}"]`).value.trim();
+  const them = document.querySelector(`.them[data-game="${gid}"]`).value.trim();
+  const chip = document.getElementById('chip-' + gid);
+  chip.className = 'chip';
+  if(us === '' || them === ''){ chip.textContent = '—'; return; }
+  const a = Number(us), b = Number(them);
+  if(a > b){ chip.textContent = 'Win'; chip.classList.add('win'); }
+  else if(a < b){ chip.textContent = 'Loss'; chip.classList.add('loss'); }
+  else { chip.textContent = 'Tie'; }
+}
 
 function render(opponents, scores){
-  document.getElementById('rows').innerHTML = GAMES.map(g => `
+  document.getElementById('rows').innerHTML = GAMES.map(g => {
+    const savedOpp = opponents[g.id] || '';
+    const list = savedOpp && !OPPONENTS.includes(savedOpp) ? [savedOpp, ...OPPONENTS] : OPPONENTS;
+    const options = '<option value="">Select opponent…</option>' +
+      list.map(t => `<option value="${esc(t)}"${t === savedOpp ? ' selected' : ''}>${esc(t)}</option>`).join('');
+    const m = /^\s*(\d+)\s*[-–:]\s*(\d+)\s*$/.exec(scores[g.id] || '');
+    const usVal = m ? m[1] : '', themVal = m ? m[2] : '';
+    return `
     <div class="week-card">
       <div class="week-date">${shortDate(g.date)} ${g.note ? `<span class="week-note">· ${g.note}</span>` : ''}</div>
-      <input class="opp" data-game="${g.id}" placeholder="Opponent" value="${opponents[g.id] || ''}">
-      <input class="score" data-game="${g.id}" placeholder="Score" value="${scores[g.id] || ''}">
-      <button class="save-btn" data-game="${g.id}">Save</button>
+      <div class="fields">
+        <select class="opp" data-game="${g.id}">${options}</select>
+        <div class="score-group">
+          <div><input class="num us" data-game="${g.id}" type="number" min="0" max="20" inputmode="numeric" placeholder="0" value="${usVal}"><div class="lbl">Elevated</div></div>
+          <span class="dash">–</span>
+          <div><input class="num them" data-game="${g.id}" type="number" min="0" max="20" inputmode="numeric" placeholder="0" value="${themVal}"><div class="lbl">Opponent</div></div>
+        </div>
+        <span class="chip" id="chip-${g.id}">—</span>
+        <button class="save-btn" data-game="${g.id}">Save</button>
+      </div>
       <div class="status" id="status-${g.id}"></div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+
+  GAMES.forEach(g => updateChip(g.id));
+  document.querySelectorAll('.us, .them').forEach(el => {
+    el.addEventListener('input', () => updateChip(el.dataset.game));
+  });
 
   document.querySelectorAll('.save-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const gid = btn.dataset.game;
-      const oppVal = document.querySelector(`.opp[data-game="${gid}"]`).value;
-      const scoreVal = document.querySelector(`.score[data-game="${gid}"]`).value;
       const statusEl = document.getElementById('status-' + gid);
-      statusEl.textContent = 'Saving…'; statusEl.className = 'status';
+      const opp = document.querySelector(`.opp[data-game="${gid}"]`).value;
+      const us = document.querySelector(`.us[data-game="${gid}"]`).value.trim();
+      const them = document.querySelector(`.them[data-game="${gid}"]`).value.trim();
 
+      if((us === '') !== (them === '')){
+        statusEl.textContent = 'Enter both numbers (Elevated and opponent), or leave both blank.';
+        statusEl.className = 'status err';
+        return;
+      }
+      const score = us !== '' ? `${Number(us)}-${Number(them)}` : '';
+
+      statusEl.textContent = 'Saving…'; statusEl.className = 'status';
       Promise.all([
-        dbRef.child('opponents').update({ [gid]: oppVal }),
-        dbRef.child('scores').update({ [gid]: scoreVal }),
+        dbRef.child('opponents').update({ [gid]: opp }),
+        dbRef.child('scores').update({ [gid]: score }),
       ]).then(() => {
-        statusEl.textContent = 'Saved — live on the tracker now.';
+        statusEl.textContent = 'Saved. Live on the tracker now.';
         statusEl.className = 'status ok';
         setTimeout(() => { statusEl.textContent = ''; }, 3000);
       }).catch(err => {
-        statusEl.textContent = 'Save failed — check connection and try again.';
+        statusEl.textContent = 'Save failed. Check your connection and try again.';
         statusEl.className = 'status err';
         console.error(err);
       });
@@ -112,7 +178,7 @@ dbRef.once('value').then(snap => {
   const data = snap.val() || {};
   render(data.opponents || {}, data.scores || {});
 }).catch(err => {
-  document.getElementById('rows').innerHTML = '<p class="loading">Could not load — check your connection and reload.</p>';
+  document.getElementById('rows').innerHTML = '<p class="loading">Could not load. Check your connection and reload.</p>';
   console.error(err);
 });
 </script>
