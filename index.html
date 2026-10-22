@@ -370,19 +370,19 @@ const STATUS_LABEL = {in:'IN', maybe:'MB', out:'OUT'};
 // League-wide standings snapshot (Men's 4.0+, El Segundo, Fall 2026) from
 // pickleballteamleagues.com. Season-cumulative, not week-by-week. Replace this whole
 // list (and STANDINGS_ASOF) whenever a new standings page is pulled.
-const STANDINGS_ASOF = 'After 10 matchups';
+const STANDINGS_ASOF = 'After 12 matchups';
 // pts = standings points, gp = matchups played, w/l = matchups won/lost, ppm = points per matchup,
 // form = last 5 matchups (as listed on the league site), mw/ml = individual matches won/lost,
 // pe/pa = game points earned/against.
 const STANDINGS = [
-  {rank:1, team:'Smart and Tall', pts:24, gp:10, w:9, l:1, ppm:2.40, form:'WWLWW', mw:24, ml:6, pe:300, pa:213},
-  {rank:2, team:'Elevated', pts:18, gp:10, w:7, l:3, ppm:1.80, form:'WWWLW', mw:18, ml:12, pe:281, pa:237, us:true},
-  {rank:3, team:'Dinking Bad', pts:17, gp:10, w:5, l:5, ppm:1.70, form:'LLLWL', mw:17, ml:13, pe:273, pa:235},
-  {rank:4, team:'Mild Stallions', pts:16, gp:10, w:6, l:4, ppm:1.60, form:'LWWLW', mw:16, ml:14, pe:263, pa:218},
-  {rank:5, team:'Absolutely Pickled', pts:14, gp:10, w:5, l:5, ppm:1.40, form:'LWWWW', mw:14, ml:16, pe:228, pa:269},
-  {rank:6, team:'Hold The Pickles MD4', pts:14, gp:10, w:4, l:6, ppm:1.40, form:'LWLLL', mw:14, ml:16, pe:253, pa:254},
-  {rank:7, team:'Fireballs', pts:10, gp:10, w:2, l:8, ppm:1.00, form:'LWLLL', mw:10, ml:20, pe:215, pa:269},
-  {rank:8, team:'Pickle Spears', pts:7, gp:10, w:2, l:8, ppm:0.70, form:'LLWLW', mw:7, ml:23, pe:190, pa:308},
+  {rank:1, team:'Smart and Tall', pts:29, gp:12, w:11, l:1, ppm:2.42, form:'WWWWL', mw:29, ml:7, pe:364, pa:256},
+  {rank:2, team:'Dinking Bad', pts:21, gp:12, w:6, l:6, ppm:1.75, form:'WLWLL', mw:21, ml:15, pe:331, pa:281},
+  {rank:3, team:'Elevated', pts:20, gp:12, w:8, l:4, ppm:1.67, form:'WWWWL', mw:20, ml:16, pe:332, pa:294, us:true},
+  {rank:4, team:'Hold The Pickles MD4', pts:20, gp:12, w:6, l:6, ppm:1.67, form:'WWLLL', mw:20, ml:16, pe:319, pa:294},
+  {rank:5, team:'Absolutely Pickled', pts:17, gp:12, w:6, l:6, ppm:1.42, form:'LWLWW', mw:17, ml:19, pe:283, pa:314},
+  {rank:6, team:'Mild Stallions', pts:16, gp:12, w:6, l:6, ppm:1.33, form:'LLWLW', mw:16, ml:20, pe:290, pa:284},
+  {rank:7, team:'Fireballs', pts:11, gp:12, w:2, l:10, ppm:0.92, form:'LLLWL', mw:11, ml:25, pe:249, pa:333},
+  {rank:8, team:'Pickle Spears', pts:10, gp:12, w:3, l:9, ppm:0.83, form:'WWLLL', mw:10, ml:26, pe:241, pa:353},
 ];
 
 let state = { players: DEFAULT_PLAYERS.slice(), attendance:{}, opponents:{}, scores:{} };
